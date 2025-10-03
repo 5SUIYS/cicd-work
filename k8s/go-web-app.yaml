@@ -3,22 +3,22 @@ kind: Deployment
 metadata:
   name: ggb-test-deployment  # Deployment 名称
   labels:
-    app: ggb-web
+    app: go-web
 spec:
   replicas: 2  # 副本数量
   selector:
     matchLabels:
-      app: ggb-test
+      app: go-web
   template:
     metadata:
       labels:
-        app: ggb-test
+        app: go-web
     spec:
       containers:
       - name: ggb-test-container  # 容器名称
-        image: 491325670276.dkr.ecr.ap-southeast-2.amazonaws.com/go-web:394b99b98cb0bfa0b9524ef3b42de4b8bc2f2dfc # ECR 镜像地址
+        image: 491325670276.dkr.ecr.ap-southeast-2.amazonaws.com/go-web:latest # ECR 镜像地址
         ports:
-        - containerPort: 80  # 容器暴露的端口
+        - containerPort: 8080 # 容器暴露的端口
         resources:  # 资源限制
           requests:
             cpu: "100m"
@@ -33,7 +33,7 @@ metadata:
   name: go-web-svc
 spec:
   selector:
-     app: ggb-test  #与deployment完全相同
+     app: go-web#与deployment完全相同
   ports:
      - port: 80
        targetPort: 8080
