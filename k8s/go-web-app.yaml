@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ggb-test-deployment  # Deployment 名称
+  name: go-web-deployment
   labels:
     app: go-web
 spec:
-  replicas: 2  # 副本数量
+  replicas: 1
   selector:
     matchLabels:
       app: go-web
@@ -15,11 +15,11 @@ spec:
         app: go-web
     spec:
       containers:
-      - name: ggb-test-container  # 容器名称
-        image: 491325670276.dkr.ecr.ap-southeast-2.amazonaws.com/go-web:latest # ECR 镜像地址
+      - name: go-web-container
+        image: 491325670276.dkr.ecr.ap-southeast-2.amazonaws.com/go-web:latest
         ports:
-        - containerPort: 8080 # 容器暴露的端口
-        resources:  # 资源限制
+        - containerPort: 8080
+        resources:
           requests:
             cpu: "100m"
             memory: "128Mi"
@@ -30,11 +30,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: go-web-svc
+  name: go-web-service
 spec:
   selector:
-     app: go-web#与deployment完全相同
+    app: go-web
   ports:
-     - port: 80
-       targetPort: 8080
+  - port: 80
+    targetPort: 8080
   type: NodePort
