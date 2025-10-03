@@ -14,6 +14,13 @@ spec:
       labels:
         app: go-web
     spec:
+      tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "karpenter.sh/disrupted"
+        operator: "Exists"
+        effect: "NoSchedule"
       containers:
       - name: go-web-container
         image: 491325670276.dkr.ecr.ap-southeast-2.amazonaws.com/go-web:latest
