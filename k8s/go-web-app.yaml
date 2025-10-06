@@ -33,6 +33,12 @@ spec:
           limits:
             cpu: "500m"
             memory: "512Mi"
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  revisionHistoryLimit: 10
 ---
 apiVersion: v1
 kind: Service
