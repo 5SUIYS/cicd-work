@@ -18,7 +18,7 @@ type Info struct {
 // 健康检查接口处理函数
 func healthHandler(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
-    w.Write([]byte("OK"))
+    w.Write([]byte("okkkkkkkkkk"))
 }
 
 // 服务信息接口处理函数
