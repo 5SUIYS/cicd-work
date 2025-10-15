@@ -22,7 +22,7 @@ spec:
         operator: "Exists"
         effect: "NoSchedule"
       containers:
-      - name: go-web-container
+      - name: go-web-app
         image: 715841348219.dkr.ecr.us-east-1.amazonaws.com/test-ecr
         ports:
         - containerPort: 8080
