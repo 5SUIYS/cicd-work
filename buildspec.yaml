@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo 登录到 ECR...
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URL
+      - echo 设置 Docker Buildx...
+      - docker buildx create --use --name multiarch-builder --driver docker-container
+      - docker buildx inspect --bootstrap
+  build:
+    commands:
+      - echo 开始构建多架构 Docker 镜像...
+      - docker buildx build -f Dockerfile.ecr --platform linux/amd64,linux/arm64 -t $ECR_REPO_URL:latest -t $ECR_REPO_URL:$CODEBUILD_RESOLVED_SOURCE_VERSION --push .
+  post_build:
+    commands:
+      - echo 多架构镜像构建完成并已推送到 ECR
+
+env:
+  variables:
+    AWS_REGION: "us-east-1"
+    ECR_REPO_URL: "715841348219.dkr.ecr.us-east-1.amazonaws.com/test-ecr"
+
+artifacts:
+  files:
+    - '**/*'
