@@ -11,7 +11,7 @@ phases:
   build:
     commands:
       - echo 开始构建多架构 Docker 镜像...
-      - docker buildx build -f Dockerfile.ecr --platform linux/amd64,linux/arm64 -t $ECR_REPO_URL:latest -t $ECR_REPO_URL:$CODEBUILD_RESOLVED_SOURCE_VERSION --push .
+      - docker buildx build -f Dockerfile --platform linux/amd64,linux/arm64 -t $ECR_REPO_URL:latest -t $ECR_REPO_URL:$CODEBUILD_RESOLVED_SOURCE_VERSION --push .
   post_build:
     commands:
       - echo 多架构镜像构建完成并已推送到 ECR
