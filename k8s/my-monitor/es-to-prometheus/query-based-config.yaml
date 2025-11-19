@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: es-query-exporter-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    elasticsearch:
+      url: "http://internal-k8s-elk-esextern-4efb898c04-644485829.us-east-1.elb.amazonaws.com:9200"
+    
+    # 自动发现配置
+    auto_discovery:
+      enabled: true
+      interval: 300  # 每5分钟重新发现索引
+      exclude_patterns:  # 排除系统索引
+        - "^\\..*"  # 以 . 开头的系统索引
+    
+    # 查询定义 - 以查询为核心
+    # index_filter: 使用正则表达式过滤需要查询的索引
+    queries:
+      # HTTP 5xx 错误 - 只查询 nginx 日志
+      - name: "http_5xx_errors"
+        description: "HTTP 5xx errors by index"
+        query:
+          query:
+            bool:
+              must:
+                - range:
+                    "@timestamp":
+                      gte: "now-5m"
+                - range:
+                    response_code:
+                      gte: 500
+        index_filter: ".*-nginx-logs-.*"
+      # 应用错误日志 - 只查询 app 日志
+      - name: "app_error_logs"
+        description: "Application ERROR level logs by index"
+        query:
+          query:
+            bool:
+              must:
+                - range:
+                    "@timestamp":
+                      gte: "now-5m"
+                - bool:
+                    should:
+                      - term:
+                          "logs.level": "ERROR"
+                      - term:
+                          "logs.level.keyword": "ERROR"
+                      - term:
+                          level: "ERROR"
+                      - term:
+                          "level.keyword": "ERROR"
+        index_filter: ".*-app-.*-logs-.*,.*-app-logs-.*"
+      
+      # 慢请求 - 只查询 nginx 日志
+      - name: "slow_requests"
+        description: "Requests slower than 1 second by index"
+        query:
+          query:
+            bool:
+              must:
+                - range:
+                    "@timestamp":
+                      gte: "now-5m"
+                - range:
+                    request_time:
+                      gte: 3.0
+        index_filter: ".*-nginx-logs-.*"

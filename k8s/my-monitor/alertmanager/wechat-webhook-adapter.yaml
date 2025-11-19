@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wechat-webhook-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    # 企业微信配置
+    wechat:
+      corp_id: "your-corp-id"
+      corp_secret: "your-corp-secret"
+      agent_id: "your-agent-id"
+    
+    # 消息模板
+    template: |
+      **{{ .GroupLabels.alertname }}告警**
+      
+      **级别**: {{ .GroupLabels.severity }}
+      **状态**: {{ .Status }}
+      
+      {{ range .Alerts }}
+      **告警**: {{ .Labels.alertname }}
+      **摘要**: {{ .Annotations.summary }}
+      **详情**: {{ .Annotations.description }}
+      **时间**: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+      ---
+      {{ end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wechat-webhook
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wechat-webhook
+  template:
+    metadata:
+      labels:
+        app: wechat-webhook
+    spec:
+      containers:
+      - name: wechat-webhook
+        image: timonwong/prometheus-webhook-wechat:v2.4.1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: WECHAT_CORP_ID
+          value: "your-corp-id"
+        - name: WECHAT_CORP_SECRET
+          value: "your-corp-secret"
+        - name: WECHAT_AGENT_ID
+          value: "your-agent-id"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus-webhook-wechat
+        command:
+        - /bin/prometheus-webhook-wechat
+        - --config.file=/etc/prometheus-webhook-wechat/config.yaml
+      volumes:
+      - name: config
+        configMap:
+          name: wechat-webhook-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wechat-webhook
+  namespace: monitoring
+spec:
+  selector:
+    app: wechat-webhook
+  ports:
+  - port: 8080
+    targetPort: 8080

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dingtalk-config
+  namespace: monitoring
+data:
+  config.yml: |
+    targets:
+      webhook1:
+        url: https://oapi.dingtalk.com/robot/send?access_token=e920e065e5549029ce42e758638888cfd933490a46c577cacd0827db48fabe3c
+        secret: SEC1cceecac032cc37b1a3d1405f62c6e1d4a12d06eb21bdc8cd560241ef15d00eb
+        message:
+          title: '{{ if eq .Status "resolved" }}✅ 告警恢复{{ else }}{{ range .Alerts }}level ERROR five minutes is {{ .Annotations.summary }} {{ .Labels.index_name }}{{ end }}{{ end }}'
+          text: |
+            {{ if eq .Status "resolved" }}
+            {{ range .Alerts }}
+            ✅ **告警已恢复**
+            
+            告警名称: {{ .Labels.alertname }}
+            索引名: {{ .Labels.index_name  }}
+            实例名称： {{ .Labels.instance }}
+            恢复时间: {{ .EndsAt.Format "2006-01-02 15:04:05" }}
+            持续时长: {{ sub .EndsAt.Unix .StartsAt.Unix }}秒
+            {{ end }}
+            {{ else }}
+            {{ range .Alerts }}
+            {{ .Annotations.summary }} 
+            events occurred between {{ .StartsAt.Format "2006-01-02 15:04" }} UTC and {{ .StartsAt.Format "2006-01-02 15:04" }} UTC
+            
+            报警时间: {{ .StartsAt.Format "2006-01-02T15:04:05Z" }}
+            _id: {{ .Labels.alertname }}_{{ .StartsAt.Unix }}
+            
+            索引名称: {{ .Labels.index_name }}
+            查询： {{ .Annotations.description }}
+            {{ if .EndsAt }}
+            
+            {{ end }}
+            {{ end }}
+            {{ end }}

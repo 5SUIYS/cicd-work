@@ -1,0 +1,97 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: es-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  # HTTP 5xx 错误告警
+  - name: elasticsearch-http-5xx-errors
+    interval: 1m
+    rules:
+    # 严重：5xx 错误超过 50 个
+    - alert: ES_HTTP_5xx_Critical
+      expr: es_http_5xx_errors_total > 50
+      for: 2m
+      labels:
+        severity: critical
+        category: http_error
+      annotations:
+        summary: "HTTP_5xx_Critical is {{ $value }} {{ $labels.index_name }} 阈值：50"
+        description: |
+          response_code:(>499)
+
+    
+    # 警告：5xx 错误超过 30 个
+    - alert: ES_HTTP_5xx_Warning
+      expr: es_http_5xx_errors_total > 30 and es_http_5xx_errors_total <= 50
+      for: 5m
+      labels:
+        severity: warning
+        category: http_error
+      annotations:
+        summary: "HTTP_5xx_Warning is {{ $value }} {{ $labels.index_name }} 阈值：30"
+        description: |
+          response_code:(>499)
+
+  # 应用错误日志告警
+  - name: elasticsearch-app-errors
+    interval: 1m
+    rules:
+    # 严重：应用错误日志超过 300 条
+    - alert: ES_App_Error_Critical
+      expr: es_app_error_logs_total > 300
+      for: 3m
+      labels:
+        severity: critical
+        category: app_error
+      annotations:
+        summary: "App_Error_Critical is {{ $value }} {{ $labels.index_name }} 阈值：300"
+        description: |
+          logs.level:ERROR
+
+    
+    # 警告：应用错误日志超过 200 条
+    - alert: ES_App_Error_Warning
+      expr: es_app_error_logs_total > 200 and es_app_error_logs_total <= 300
+      for: 5m
+      labels:
+        severity: warning
+        category: app_error
+      annotations:
+        summary: "App_Error_Warning is {{ $value }} {{ $labels.index_name }} 阈值：200"
+        description: |
+          logs.level:ERROR
+
+
+  # 慢请求告警（>3秒）
+  - name: elasticsearch-slow-requests
+    interval: 1m
+    rules:
+    # 警告：慢请求超过 30 个
+    - alert: ES_Slow_Requests_High
+      expr: es_slow_requests_total > 30
+      for: 5m
+      labels:
+        severity: warning
+        category: performance
+      annotations:
+        summary: "Slow_Requests_High is {{ $value }} {{ $labels.index_name }} 阈值：30（>3秒）"
+        description: |
+          request_time:(>=3)
+
+    
+    # 信息：慢请求超过 20 个
+    - alert: ES_Slow_Requests_Info
+      expr: es_slow_requests_total > 20 and es_slow_requests_total <= 30
+      for: 10m
+      labels:
+        severity: info
+        category: performance
+      annotations:
+        summary: "slow_Request five minutes is {{ $value }} {{ $labels.index_name }} 阈值：20（>3秒）"
+        description: |
+          request_time:(>=3)

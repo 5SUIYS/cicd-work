@@ -1,0 +1,243 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: es-query-exporter-script
+  namespace: monitoring
+data:
+  exporter.py: |
+    import requests
+    import json
+    import time
+    import yaml
+    import re
+    from prometheus_client import start_http_server, Gauge
+    
+    class QueryBasedESExporter:
+        def __init__(self, config_file):
+            with open(config_file, 'r') as f:
+                self.config = yaml.safe_load(f)
+            
+            self.es_url = self.config['elasticsearch']['url']
+            self.queries = self.config.get('queries', [])
+            self.auto_discovery = self.config.get('auto_discovery', {})
+            self.metrics = {}
+            self.discovered_indices = []
+            
+            # 初始发现索引
+            if self.auto_discovery.get('enabled', False):
+                self.discover_indices()
+            
+            # 为每个查询创建 Prometheus Gauge
+            for query_def in self.queries:
+                metric_name = f"es_{query_def['name']}_total"
+                self.metrics[query_def['name']] = Gauge(
+                    metric_name,
+                    query_def.get('description', ''),
+                    ['index_name', 'job', 'instance']
+                )
+        
+        def discover_indices(self):
+            """从 ES 发现所有索引"""
+            try:
+                response = requests.get(
+                    f"{self.es_url}/_cat/indices?format=json",
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    indices = response.json()
+                    exclude_patterns = self.auto_discovery.get('exclude_patterns', [])
+                    
+                    self.discovered_indices = []
+                    for idx in indices:
+                        index_name = idx['index']
+                        
+                        # 排除匹配的索引
+                        excluded = False
+                        for pattern in exclude_patterns:
+                            if re.match(pattern, index_name):
+                                excluded = True
+                                break
+                        
+                        if not excluded:
+                            self.discovered_indices.append(index_name)
+                    
+                    print(f"Discovered {len(self.discovered_indices)} indices")
+                else:
+                    print(f"Failed to discover indices: {response.status_code}")
+                    
+            except Exception as e:
+                print(f"Error discovering indices: {e}")
+        
+        def get_target_indices(self, query_def):
+            """获取查询的目标索引列表（根据过滤规则）"""
+            index_filter = query_def.get('index_filter')
+            
+            if not index_filter:
+                return []
+            
+            # 支持逗号分隔多个正则表达式
+            filter_patterns = [p.strip() for p in index_filter.split(',')]
+            matched_indices = []
+            
+            for idx in self.discovered_indices:
+                for pattern_str in filter_patterns:
+                    if re.match(pattern_str, idx):
+                        matched_indices.append(idx)
+                        break  # 匹配到一个就跳出
+            
+            return matched_indices
+        
+        def execute_query(self, query_def):
+            """为每个 index 独立执行查询"""
+            query_name = query_def['name']
+            query_body = query_def['query']
+            target_indices = self.get_target_indices(query_def)
+            
+            if not target_indices:
+                return
+            
+            metric = self.metrics[query_name]
+            matched_count = 0
+            
+            # 为每个 index 独立查询
+            for index_name in target_indices:
+                try:
+                    response = requests.post(
+                        f"{self.es_url}/{index_name}/_count",
+                        json=query_body,
+                        headers={"Content-Type": "application/json"},
+                        timeout=10
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        count = data.get('count', 0)
+                        
+                        # 设置 metric，每个 index 独立一行
+                        metric.labels(
+                            index_name=index_name,
+                            job='elasticsearch',
+                            instance=''
+                        ).set(count)
+                        
+                        if count > 0:
+                            matched_count += 1
+                            print(f"  {index_name}: {count}")
+                            
+                except Exception as e:
+                    pass
+            
+            if matched_count > 0:
+                print(f"{query_name}: {matched_count} indices with results")
+        
+        def run(self):
+            """主运行循环"""
+            print(f"Query-based ES Exporter started with {len(self.queries)} queries")
+            
+            last_discovery = time.time()
+            discovery_interval = self.auto_discovery.get('interval', 300)
+            
+            while True:
+                # 定期重新发现索引
+                if self.auto_discovery.get('enabled', False):
+                    if time.time() - last_discovery > discovery_interval:
+                        self.discover_indices()
+                        last_discovery = time.time()
+                
+                print(f"\n=== Executing queries at {time.strftime('%Y-%m-%d %H:%M:%S')} ===")
+                
+                for query_def in self.queries:
+                    self.execute_query(query_def)
+                
+                time.sleep(60)  # 每分钟执行一次
+    
+    if __name__ == '__main__':
+        start_http_server(8080)
+        exporter = QueryBasedESExporter('/app/config.yaml')
+        exporter.run()
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: es-query-exporter
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: es-query-exporter
+  template:
+    metadata:
+      labels:
+        app: es-query-exporter
+    spec:
+      containers:
+      - name: exporter
+        image: python:3.9-slim
+        command:
+        - sh
+        - -c
+        - |
+          pip install requests prometheus_client pyyaml
+          python /app/exporter.py
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+        - name: script
+          mountPath: /app/exporter.py
+          subPath: exporter.py
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+      volumes:
+      - name: config
+        configMap:
+          name: es-query-exporter-config
+      - name: script
+        configMap:
+          name: es-query-exporter-script
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: es-query-exporter
+  namespace: monitoring
+  labels:
+    app: es-query-exporter
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: es-query-exporter
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: es-query-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: es-query-exporter
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 60s

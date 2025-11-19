@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dingtalk-webhook
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dingtalk-webhook
+  template:
+    metadata:
+      labels:
+        app: dingtalk-webhook
+    spec:
+      containers:
+      - name: dingtalk-webhook
+        image: timonwong/prometheus-webhook-dingtalk:v2.1.0
+        ports:
+        - containerPort: 8060
+        args:
+        - --web.listen-address=:8060
+        - --config.file=/etc/prometheus-webhook-dingtalk/config.yml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus-webhook-dingtalk
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: dingtalk-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dingtalk-webhook
+  namespace: monitoring
+spec:
+  selector:
+    app: dingtalk-webhook
+  ports:
+  - port: 8080
+    targetPort: 8060
